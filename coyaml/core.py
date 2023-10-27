@@ -87,7 +87,7 @@ class Config(object):
         self.meta.update(meta)
 
     def add_type(self, typ):
-        assert not typ.name in self.types
+        assert typ.name not in self.types
         self.types[typ.name] = typ
 
     def fill_data(self, data):

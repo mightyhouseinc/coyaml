@@ -33,16 +33,14 @@ reserved = {
     'static',
     }
 
-builtin_conversions = set([
-    'coyaml_tagged_scalar',
-    ])
+builtin_conversions = {'coyaml_tagged_scalar'}
 
 def varname(value):
     value = value.replace('-', '_')
     if value[0] in digits:
-        value = '_'+value
+        value = f'_{value}'
     if value in reserved:
-        value = value + '_'
+        value = f'{value}_'
     return value
 
 def parse_int(value):

@@ -62,7 +62,7 @@ class StructInfo(object):
     def __init__(self, name, inheritance=False):
         self.name = name
         self.flagcount = 1 if inheritance else 0
-        self.a_ptr = Typename(name + ' *')
+        self.a_ptr = Typename(f'{name} *')
         self.a_name = Ident(name)
         self.inheritance = inheritance
 
@@ -78,7 +78,7 @@ class ArrayEl(object):
 
     def __init__(self, name):
         self.name = name
-        self.a_ptr = Typename(name + ' *')
+        self.a_ptr = Typename(f'{name} *')
         self.a_name = Ident(name)
 
     def nextflag(self):
@@ -88,7 +88,7 @@ class MappingEl(object):
 
     def __init__(self, name):
         self.name = name
-        self.a_ptr = Typename(name + ' *')
+        self.a_ptr = Typename(f'{name} *')
         self.a_name = Ident(name)
 
     def nextflag(self):
@@ -105,23 +105,33 @@ class GenCCode(object):
             'custom', 'mapping', 'array', 'bool')
         if decl:
             for i in items:
-                ast(Var('coyaml_'+i+'_t',
-                    self.prefix+'_'+i+'_vars',
-                    static=True, array=(None,)))
+                ast(
+                    Var(
+                        f'coyaml_{i}_t',
+                        f'{self.prefix}_{i}_vars',
+                        static=True,
+                        array=(None,),
+                    )
+                )
         else:
             self.states = {}
             for i in items:
-                res = ast(VarAssign('coyaml_'+i+'_t',
-                    self.prefix+'_'+i+'_vars', Arr(ast.block()),
-                    static=True, array=(None,)))
+                res = ast(
+                    VarAssign(
+                        f'coyaml_{i}_t',
+                        f'{self.prefix}_{i}_vars',
+                        Arr(ast.block()),
+                        static=True,
+                        array=(None,),
+                    )
+                )
                 self.states[i] = res
             return self.states.values()
 
     def _clear_unused_vars(self, transitions, vars):
-        to_remove = set()
-        for name, zone in self.states.items():
-            if not zone.content:
-                to_remove.add('_{}_'.format(name))
+        to_remove = {
+            f'_{name}_' for name, zone in self.states.items() if not zone.content
+        }
         for item in transitions.content[:]:
             if isinstance(item, Var):
                 for name in to_remove:
@@ -151,7 +161,7 @@ class GenCCode(object):
         ast(StdInclude('stdio.h'))
         ast(StdInclude('errno.h'))
         ast(StdInclude('strings.h'))
-        ast(Include(self.cfg.targetname+'.h'))
+        ast(Include(f'{self.cfg.targetname}.h'))
         ast(VSpace())
         self.lasttran = 0
         self._vars(ast.zone('transitions'), decl=True)
@@ -168,9 +178,9 @@ class GenCCode(object):
         self.make_options(cli)
         self.make_environ(vars)
 
-        mainstr = Typename(self.prefix+'_main_t')
-        mainptr = Typename(self.prefix+'_main_t *')
-        with ast(Function(mainptr, self.prefix+'_init', [
+        mainstr = Typename(f'{self.prefix}_main_t')
+        mainptr = Typename(f'{self.prefix}_main_t *')
+        with ast(Function(mainptr, f'{self.prefix}_init', [
             Param(mainptr, Ident('ptr')) ], ast.block())) as init:
             init(VarAssign(mainptr, 'res', Ident('ptr')))
             with init(If(Not(Ident('res')), ast.block())) as if_:
@@ -185,22 +195,26 @@ class GenCCode(object):
                     'free_object'), Ident('TRUE'))))
             init(Statement(Call('obstack_init', [
                 Ref(Dot(Member(Ident('res'), 'head'), 'pieces'))])))
-            init(Statement(Call(self.prefix + '_defaults', [ Ident('res') ])))
+            init(Statement(Call(f'{self.prefix}_defaults', [ Ident('res') ])))
             init(Return(Ident('res')))
 
-        with ast(Function(Typename('coyaml_context_t *'),
-            self.prefix+'_context', [
-            Param(Typename('coyaml_context_t *'), 'inp'),
-            Param(Typename(self.prefix+'_main_t *'), 'tinp'),
-            ], ast.block())) as ctx:
+        with ast(Function(Typename('coyaml_context_t *'), f'{self.prefix}_context', [Param(Typename('coyaml_context_t *'), 'inp'), Param(Typename(f'{self.prefix}_main_t *'), 'tinp')], ast.block())) as ctx:
             _ctx = Ident('ctx')
             ctx(VarAssign('coyaml_context_t *', _ctx,
                 Call('coyaml_context_init', [ Ident('inp') ])))
             with ctx(If(Not(_ctx), ctx.block())) as if_:
                 if_(Return(NULL))
-            ctx(Statement(Assign(Member(_ctx, 'target'), Coerce(
-                Typename('coyaml_head_t *'),
-                Call(self.prefix + '_init', [ Ident('tinp') ])))))
+            ctx(
+                Statement(
+                    Assign(
+                        Member(_ctx, 'target'),
+                        Coerce(
+                            Typename('coyaml_head_t *'),
+                            Call(f'{self.prefix}_init', [Ident('tinp')]),
+                        ),
+                    )
+                )
+            )
             with ctx(If(Not(Member(_ctx, 'target')), ctx.block())) as if_:
                 if_(Statement(Call('coyaml_context_free', [ _ctx ])))
                 if_(Return(NULL))
@@ -218,16 +232,30 @@ class GenCCode(object):
                 ctx(Statement(Assign(fn,
                     String(self.cfg.meta.default_config))))
 
-            ctx(Statement(Assign(Member(_ctx, 'cmdline'),
-                Ref(self.prefix + '_cmdline'))))
-            ctx(Statement(Assign(Member(_ctx, 'env_vars'),
-                Ident(self.prefix + '_env_vars'))))
-            ctx(Statement(Assign(Member(_ctx, 'root_group'), Ref(Subscript(
-                Ident(self.prefix+'_group_vars'),
-                Int(len(self.states['group'].content)-1))))))
+            ctx(Statement(Assign(Member(_ctx, 'cmdline'), Ref(f'{self.prefix}_cmdline'))))
+            ctx(
+                Statement(
+                    Assign(
+                        Member(_ctx, 'env_vars'), Ident(f'{self.prefix}_env_vars')
+                    )
+                )
+            )
+            ctx(
+                Statement(
+                    Assign(
+                        Member(_ctx, 'root_group'),
+                        Ref(
+                            Subscript(
+                                Ident(f'{self.prefix}_group_vars'),
+                                Int(len(self.states['group'].content) - 1),
+                            )
+                        ),
+                    )
+                )
+            )
             ctx(Return(_ctx))
 
-        with ast(Function(Void(), self.prefix+'_free', [
+        with ast(Function(Void(), f'{self.prefix}_free', [
             Param(mainptr, Ident('ptr')) ], ast.block())) as free:
             free(Statement(Call('obstack_free', [
                 Ref(Dot(Member(Ident('ptr'), 'head'), 'pieces')),
@@ -236,7 +264,7 @@ class GenCCode(object):
                 ast.block())) as if_:
                 if_(Statement(Call('free', [ Ident('ptr') ])))
 
-        with ast(Function(Typename('bool'), self.prefix+'_readfile', [
+        with ast(Function(Typename('bool'), f'{self.prefix}_readfile', [
             Param('coyaml_context_t *', 'ctx'),
             ], ast.block())) as fun:
             fun(Return(Call('coyaml_readfile', [Ident('ctx')] )))
@@ -245,12 +273,11 @@ class GenCCode(object):
             Gt(Ident('errno'), Ident('ECOYAML_MAX')),
             Lt(Ident('errno'), Ident('ECOYAML_MIN'))), ast.block())
 
-        with ast(Function(mainptr, self.prefix+'_load', [ Param(mainptr, 'ptr'),
+        with ast(Function(mainptr, f'{self.prefix}_load', [ Param(mainptr, 'ptr'),
             Param('int','argc'), Param('char**','argv') ], ast.block())) as fun:
             fun(Var('coyaml_context_t', 'ctx'))
-            with fun(If(Lt(Call(self.prefix+'_context', [
-                Ref(Ident('ctx')), Ident('ptr') ]), Int(0)),
-                fun.block())) as if_:
+            with fun(If(Lt(Call(f'{self.prefix}_context', [
+                Ref(Ident('ctx')), Ident('ptr') ]), Int(0)), fun.block())) as if_:
                 if_(Statement(Call('perror', [
                     Subscript(Ident('argv'), Int(0)) ])))
                 if_(Statement(Call('exit', [ Int(1) ])))
@@ -282,17 +309,18 @@ class GenCCode(object):
                 continue
             opt.index = optval
             optval += 1
-        ast(Func('int', self.prefix+'_print', [
-                Param('FILE *', 'out'),
-                Param(self.prefix+'_main_t *', 'cfg'),
-                Param('coyaml_print_enum', 'mode'),
-                ]))
-        with ast(VarAssign('struct option',
-                self.prefix+'_getopt_ar', Arr(ast.block()),
-                static=True, array=(None,))) as cmd,\
-            ast(VarAssign('coyaml_option_t',
-                self.prefix+'_options', Arr(ast.block()),
-                static=True, array=(None,))) as copt:
+        ast(
+            Func(
+                'int',
+                f'{self.prefix}_print',
+                [
+                    Param('FILE *', 'out'),
+                    Param(f'{self.prefix}_main_t *', 'cfg'),
+                    Param('coyaml_print_enum', 'mode'),
+                ],
+            )
+        )
+        with (ast(VarAssign('struct option', f'{self.prefix}_getopt_ar', Arr(ast.block()), static=True, array=(None,))) as cmd, ast(VarAssign('coyaml_option_t', f'{self.prefix}_options', Arr(ast.block()), static=True, array=(None,))) as copt):
             cmd(StrValue(name=String('help'), val=Int(500),
                 flag='NULL', has_arg='FALSE')),
             cmd(StrValue(name=String('config'), val=Int(501),
@@ -314,7 +342,7 @@ class GenCCode(object):
             optstr = "hc:D:PC"
             optidx = [500, 501, -1, 505, -1, 600, 601]
             if not getattr(self.cfg.meta, 'mixed_arguments', True):
-                optstr = "+" + optstr
+                optstr = f"+{optstr}"
                 optidx.insert(0, -1)
             for opt in self.cfg.commandline:
                 has_arg = opt.__class__ == core.Option
@@ -329,15 +357,15 @@ class GenCCode(object):
                         flag='NULL',
                         has_arg='TRUE' if has_arg else 'FALSE'))
                 if isinstance(opt, core.IncrOption):
-                    opt_fun = opt.target.prop_func + '_incr_o'
+                    opt_fun = f'{opt.target.prop_func}_incr_o'
                 elif isinstance(opt, core.DecrOption):
-                    opt_fun = opt.target.prop_func + '_decr_o'
+                    opt_fun = f'{opt.target.prop_func}_decr_o'
                 elif isinstance(opt, core.EnableOption):
-                    opt_fun = opt.target.prop_func + '_enable_o'
+                    opt_fun = f'{opt.target.prop_func}_enable_o'
                 elif isinstance(opt, core.DisableOption):
-                    opt_fun = opt.target.prop_func + '_disable_o'
+                    opt_fun = f'{opt.target.prop_func}_disable_o'
                 elif isinstance(opt, core.Option):
-                    opt_fun = opt.target.prop_func+'_o'
+                    opt_fun = f'{opt.target.prop_func}_o'
                 else:
                     raise NotImplementedError(opt)
                 copt(StrValue(
@@ -345,8 +373,15 @@ class GenCCode(object):
                     prop=Coerce('coyaml_placeholder_t *', opt.target.prop_ref),
                     ))
             cmd(StrValue(name=NULL, val=Int(0), flag='NULL', has_arg='FALSE')),
-        ast(VarAssign('int', self.prefix+'_optidx',
-            Arr(list(map(Int, optidx))), static=True, array=(None,)))
+        ast(
+            VarAssign(
+                'int',
+                f'{self.prefix}_optidx',
+                Arr(list(map(Int, optidx))),
+                static=True,
+                array=(None,),
+            )
+        )
         stroptions = []
         for target in targets:
             for typ in (core.Option,
@@ -372,7 +407,7 @@ class GenCCode(object):
                     stroptions.extend(textwrap.wrap(description,
                         width=80, initial_indent=opt, subsequent_indent=' '*20))
                 else:
-                    stroptions.append('  '+opt)
+                    stroptions.append(f'  {opt}')
                     stroptions.extend(textwrap.wrap(description,
                         width=80, initial_indent=' '*20,
                         subsequent_indent=' '*20))
@@ -382,47 +417,74 @@ class GenCCode(object):
             options='\n'.join(stroptions),
             )
         usage = "Usage: {m.program_name} [options]\n".format(m=self.cfg.meta)
-        ast(VarAssign('coyaml_cmdline_t', self.prefix+'_cmdline',
-            StrValue(
-                optstr=String(optstr),
-                optidx=self.prefix+'_optidx',
-                usage=String(usage),
-                full_description=String(descr),
-                has_arguments=Ident('TRUE')
+        ast(
+            VarAssign(
+                'coyaml_cmdline_t',
+                f'{self.prefix}_cmdline',
+                StrValue(
+                    optstr=String(optstr),
+                    optidx=f'{self.prefix}_optidx',
+                    usage=String(usage),
+                    full_description=String(descr),
+                    has_arguments=Ident('TRUE')
                     if getattr(self.cfg.meta, 'has_arguments', False)
                     else Ident('FALSE'),
-                options=self.prefix+'_getopt_ar',
-                coyaml_options=self.prefix+'_options',
-                print_callback=Coerce('coyaml_print_fun',
-                    Ref(self.prefix+'_print')),
-            )))
+                    options=f'{self.prefix}_getopt_ar',
+                    coyaml_options=f'{self.prefix}_options',
+                    print_callback=Coerce(
+                        'coyaml_print_fun', Ref(f'{self.prefix}_print')
+                    ),
+                ),
+            )
+        )
 
     def make_environ(self, ast):
-        ast(VarAssign('coyaml_env_var_t', self.prefix+'_env_vars', Arr([
-            StrValue(
-                name=String(ev.name),
-                prop=Coerce('coyaml_placeholder_t *', ev.target.prop_ref),
-                callback=Coerce('coyaml_option_fun', ev.target.prop_func+'_o'),
-            ) for ev in self.cfg.environ]
-            + [StrValue(name=NULL)]),
-            array=(None,)))
+        ast(
+            VarAssign(
+                'coyaml_env_var_t',
+                f'{self.prefix}_env_vars',
+                Arr(
+                    (
+                        [
+                            StrValue(
+                                name=String(ev.name),
+                                prop=Coerce(
+                                    'coyaml_placeholder_t *', ev.target.prop_ref
+                                ),
+                                callback=Coerce(
+                                    'coyaml_option_fun', f'{ev.target.prop_func}_o'
+                                ),
+                            )
+                            for ev in self.cfg.environ
+                        ]
+                        + [StrValue(name=NULL)]
+                    )
+                ),
+                array=(None,),
+            )
+        )
 
     def visit_hier(self, ast):
         # Visits hierarchy to set appropriate structures and member
         # names for `offsetof()` in `baseoffset`
         ast(VSpace())
-        self._mk_defaultsfun(self.prefix + '_defaults', self.cfg.data, ast=ast)
+        self._mk_defaultsfun(f'{self.prefix}_defaults', self.cfg.data, ast=ast)
         for i, sname in enumerate(self.cfg.types):
             self._visit_usertype(sname, root=ast, index=i+1)
         ast(VSpace())
         tranname = Ident('transitions_{0}'.format(self.lasttran))
         self.lasttran += 1
         with ast.zone('transitions')(VarAssign('coyaml_transition_t', tranname,
-                Arr(ast.block()),
-                static=True, array=(None,))) as tran:
+                    Arr(ast.block()),
+                    static=True, array=(None,))) as tran:
             for k, v in self.cfg.data.items():
-                self._visit_hier(v, k, StructInfo(self.prefix+'_main_t'),
-                    Member('cfg', varname(k)), root=ast)
+                self._visit_hier(
+                    v,
+                    k,
+                    StructInfo(f'{self.prefix}_main_t'),
+                    Member('cfg', varname(k)),
+                    root=ast,
+                )
                 tran(StrValue(
                     symbol=String(k),
                     prop=Coerce('coyaml_placeholder_t *', v.prop_ref),
@@ -434,32 +496,37 @@ class GenCCode(object):
                 baseoffset=Int(0),
                 transitions=tranname,
                 ))
-        with ast(Function('int', self.prefix+'_print', [
-                Param('FILE *', 'out'),
-                Param(self.prefix+'_main_t *', 'cfg'),
-                Param('coyaml_print_enum', 'mode'),
-                ], ast.block())) as past:
-            past(Return(Call('coyaml_print', [
-                Ident('out'),
-                Ref(Subscript(Ident(self.prefix+'_group_vars'),
-                    Int(len(self.states['group'].content)-1))),
-                Ident('cfg'), Ident('mode'),
-                ])))
+        with ast(Function('int', f'{self.prefix}_print', [Param('FILE *', 'out'), Param(f'{self.prefix}_main_t *', 'cfg'), Param('coyaml_print_enum', 'mode')], ast.block())) as past:
+            past(
+                Return(
+                    Call(
+                        'coyaml_print',
+                        [
+                            Ident('out'),
+                            Ref(
+                                Subscript(
+                                    Ident(f'{self.prefix}_group_vars'),
+                                    Int(len(self.states['group'].content) - 1),
+                                )
+                            ),
+                            Ident('cfg'),
+                            Ident('mode'),
+                        ],
+                    )
+                )
+            )
 
     def _mk_defaultsfun(self, defname, utype, ast, defaults={}):
-        typ = self.prefix+'_'+ getattr(utype, 'name', 'main') +'_t *'
+        typ = f'{self.prefix}_' + getattr(utype, 'name', 'main') + '_t *'
         chzone = ast.zone(typ) # for proper ordering
         with ast(Function('int', defname, [
-            Param(typ, 'cfg') ], ast.block())) as cdef:
+                Param(typ, 'cfg') ], ast.block())) as cdef:
             if hasattr(utype, 'tagname'):
                 cdef(Statement(Assign(Member('cfg', varname(utype.tagname)),
                     Int(utype.defaulttag))))
             for k, v in getattr(utype, 'members', utype).items():
                 if not isinstance(defaults, dict):
-                    if k == 'value':
-                        current_def = defaults
-                    else:
-                        current_def = None
+                    current_def = defaults if k == 'value' else None
                 else:
                     current_def = defaults.get(k)
                 self._visit_defaults(v, Member('cfg', varname(k)),
@@ -485,15 +552,18 @@ class GenCCode(object):
             else:
                 dlen = 0
             ast(Statement(Assign(mem, String(default))))
-            lenmem = mem.__class__(mem.source, mem.name.value + '_len')
+            lenmem = mem.__class__(mem.source, f'{mem.name.value}_len')
             ast(Statement(Assign(lenmem, Int(dlen))))
         elif isinstance(item, load.Bool):
             ast(Statement(Assign(mem, Ident('TRUE')
                 if default else Ident('FALSE'))))
         elif isinstance(item, load.Struct):
             if not hasattr(item, 'default_'):
-                ast(Statement(Call(self.prefix+'_defaults_'+item.type, [
-                    Ref(mem) ])))
+                ast(
+                    Statement(
+                        Call(f'{self.prefix}_defaults_{item.type}', [Ref(mem)])
+                    )
+                )
             else:
                 utype = self.cfg.types[item.type]
                 item.default_fun = '{0}_defaults_{1}_{2}'.format(
@@ -504,8 +574,9 @@ class GenCCode(object):
 
     def _visit_usertype(self, name, root, index):
         utype = self.cfg.types[name]
-        struct = StructInfo(self.prefix+'_'+name+'_t',
-            inheritance=bool(utype.inheritance))
+        struct = StructInfo(
+            f'{self.prefix}_{name}_t', inheritance=bool(utype.inheritance)
+        )
         tranname = Ident('transitions_{0}'.format(self.lasttran))
         self.lasttran += 1
         with root.zone('transitions')(VarAssign('coyaml_transition_t',
@@ -530,44 +601,73 @@ class GenCCode(object):
             ))
         uzone = root.zone('usertypes')
         if hasattr(utype, 'tags'):
-            tagvar = self.prefix+'_'+name+'_tags'
-            uzone(VarAssign('coyaml_tag_t', tagvar, Arr([
-                StrValue(tagname=String('!'+k), tagvalue=Int(v))
-                for k, v in utype.tags.items() ]
-                + [ StrValue(tagname=NULL, tagvalue=Int(0)) ]),
-                static=True, array=(None,)))
+            tagvar = f'{self.prefix}_{name}_tags'
+            uzone(
+                VarAssign(
+                    'coyaml_tag_t',
+                    tagvar,
+                    Arr(
+                        (
+                            [
+                                StrValue(tagname=String(f'!{k}'), tagvalue=Int(v))
+                                for k, v in utype.tags.items()
+                            ]
+                            + [StrValue(tagname=NULL, tagvalue=Int(0))]
+                        )
+                    ),
+                    static=True,
+                    array=(None,),
+                )
+            )
             default_tag = getattr(utype, 'defaulttag', -1)
         else:
             tagvar = 'NULL'
             default_tag = -1
 
-        defname = self.prefix+'_defaults_'+name
+        defname = f'{self.prefix}_defaults_{name}'
         self._mk_defaultsfun(defname, utype, root)
         uzone(Func('int', defname, [ Param(struct.a_ptr, 'cfg') ]))
 
         conv_fun = getattr(utype, 'convert', None)
         if conv_fun is not None and conv_fun not in builtin_conversions:
-            uzone(Func('int', utype.convert, [
-                Param('coyaml_parseinfo_t *', 'info'),
-                Param('char *', 'value'),
-                Param('coyaml_group_t *', 'group'),
-                Param(self.prefix+'_'+name+'_t *', 'target'),
-                ]))
+            uzone(
+                Func(
+                    'int',
+                    utype.convert,
+                    [
+                        Param('coyaml_parseinfo_t *', 'info'),
+                        Param('char *', 'value'),
+                        Param('coyaml_group_t *', 'group'),
+                        Param(f'{self.prefix}_{name}_t *', 'target'),
+                    ],
+                )
+            )
             uzone(VSpace())
-        uzone(VarAssign('coyaml_usertype_t',
-            self.prefix+'_'+name+'_def', StrValue(
-                type=Ref(Ident('coyaml_usertype_type')),
-                baseoffset=Int(0),
-                ident=Int(index),
-                flagcount=Int(struct.flagcount),
-                size=Call("sizeof", [ struct.a_name ]),
-                group=Ref(Subscript(Ident(self.prefix+'_group_vars'),
-                    Int(len(self.states['group'].content)-1))),
-                tags=Ident(tagvar),
-                default_tag=Int(default_tag),
-                scalar_fun=Coerce('coyaml_convert_fun', conv_fun)
-                    if conv_fun else NULL,
-            ), static=True))
+        uzone(
+            VarAssign(
+                'coyaml_usertype_t',
+                f'{self.prefix}_{name}_def',
+                StrValue(
+                    type=Ref(Ident('coyaml_usertype_type')),
+                    baseoffset=Int(0),
+                    ident=Int(index),
+                    flagcount=Int(struct.flagcount),
+                    size=Call("sizeof", [struct.a_name]),
+                    group=Ref(
+                        Subscript(
+                            Ident(f'{self.prefix}_group_vars'),
+                            Int(len(self.states['group'].content) - 1),
+                        )
+                    ),
+                    tags=Ident(tagvar),
+                    default_tag=Int(default_tag),
+                    scalar_fun=Coerce('coyaml_convert_fun', conv_fun)
+                    if conv_fun
+                    else NULL,
+                ),
+                static=True,
+            )
+        )
 
     def _visit_hier(self, item, name, struct, mem, root):
         if isinstance(item, dict):
