@@ -302,10 +302,12 @@ class StrValue(Node):
         ])
     def __init__(self, **kw):
         super(StrValue, self).__init__()
-        self.items = dict((k, (v if isinstance(v, Expression)
-            else Expression(v))) for k, v in kw.items())
+        self.items = {
+            k: v if isinstance(v, Expression) else Expression(v)
+            for k, v in kw.items()
+        }
         assert all(isinstance(v, Expression) for v in self.items.values()), \
-            self.items
+                self.items
 
     def format(self, stream):
         it = iter(self.items.items())
@@ -316,7 +318,7 @@ class StrValue(Node):
         stream.write('{' + k + ': ')
         v.format(stream)
         for k, v in it:
-            stream.write(', ' + k + ': ')
+            stream.write(f', {k}: ')
             v.format(stream)
         stream.write('}')
 

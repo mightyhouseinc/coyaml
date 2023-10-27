@@ -5,9 +5,7 @@ except ImportError:
     raise ImportError("Can use coyaml.waf only from wscript")
 
 def coyaml_decider(context, target):
-    if 'coyaml' in context.features:
-        return ['.h', '.c']
-    return None
+    return ['.h', '.c'] if 'coyaml' in context.features else None
 
 def coyaml_gen(task):
     if not task.outputs:
@@ -42,7 +40,7 @@ Task.task_type_from_func(
 
 @TaskGen.extension('.yaml')
 def process_coyaml(self, node):
-    if not 'coyaml' in self.features:
+    if 'coyaml' not in self.features:
         return
     cfile = node.change_ext('.c')
     self.create_task('coyaml', node,

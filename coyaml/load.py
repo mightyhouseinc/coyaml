@@ -132,11 +132,11 @@ class CStruct(YamlyType):
     
     @classmethod
     def from_yaml(cls, Loader, node):
-        if isinstance(node, yaml.ScalarNode):
-            self = cls(type=Loader.construct_scalar(node))
-        else:
-            self = cls(**Loader.construct_mapping(node))
-        return self
+        return (
+            cls(type=Loader.construct_scalar(node))
+            if isinstance(node, yaml.ScalarNode)
+            else cls(**Loader.construct_mapping(node))
+        )
     
 class CType(YamlyType):
     yaml_tag = '!CType'
@@ -147,11 +147,11 @@ class CType(YamlyType):
     
     @classmethod
     def from_yaml(cls, Loader, node):
-        if isinstance(node, yaml.ScalarNode):
-            self = cls(type=Loader.construct_scalar(node))
-        else:
-            self = cls(**Loader.construct_mapping(node))
-        return self
+        return (
+            cls(type=Loader.construct_scalar(node))
+            if isinstance(node, yaml.ScalarNode)
+            else cls(**Loader.construct_mapping(node))
+        )
 
 from .core import Config, Usertype # sorry, circular dependency
 from .util import varname

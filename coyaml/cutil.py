@@ -36,12 +36,10 @@ def string(val):
     return '"{0}"'.format(repr(val)[1:-1].replace('"', r'\"'))
 
 def typename(typ):
-    if isinstance(typ, load.Struct):
-        return typ.type
-    elif isinstance(typ, load.CType):
+    if isinstance(typ, (load.Struct, load.CType)):
         return typ.type
     elif isinstance(typ, load.CStruct):
-        return 'struct ' + typ.structname
+        return f'struct {typ.structname}'
     return _typenames[typ.__class__]
 
 def cbool(val):

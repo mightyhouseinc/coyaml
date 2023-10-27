@@ -28,10 +28,7 @@ class Node(object):
         elif isinstance(typ, ListConstraint):
             val = List(typ, val)
         elif not isinstance(val, typ):
-            if isinstance(typ, tuple):
-                val = typ[0](val)
-            else:
-                val = typ(val)
+            val = typ[0](val) if isinstance(typ, tuple) else typ(val)
         elif isinstance(val, Node):
             self._futures.extend(val._futures)
         return val
@@ -63,21 +60,18 @@ class Node(object):
                 stream.write(m.group('bracket')[0])
             elif m.group('key'):
                 fun = getattr(self, 'fmt_'+m.group('key'), None)
-                if fun is not None:
-                    val = fun()
-                    if val:
-                        stream.write(m.group('prefix'))
-                        stream.write(val)
-                        stream.write(m.group('suffix'))
-                else:
-                    val = getattr(self, m.group('key'))
-                    if val:
+                if fun is None:
+                    if val := getattr(self, m.group('key')):
                         stream.write(m.group('prefix'))
                         if isinstance(val, str):
                             stream.write(val)
                         else:
                             val.format(stream)
                         stream.write(m.group('suffix'))
+                elif val := fun():
+                    stream.write(m.group('prefix'))
+                    stream.write(val)
+                    stream.write(m.group('suffix'))
             start = m.end()
         if start != len(format):
             stream.write(format[start:])
@@ -126,7 +120,7 @@ class _Lazy(object):
     def fix(self, dic):
         for node in dic.values():
             if not isinstance(node, type) \
-                or not issubclass(node, Node) or node is Node:
+                    or not issubclass(node, Node) or node is Node:
                 continue
             for k, v in node.__slots__.items():
                 if isinstance(v, tuple):
@@ -135,9 +129,8 @@ class _Lazy(object):
                         for item in v)
                     if v1 != v:
                         node.__slots__[k] = v1
-                else:
-                    if isinstance(v, _LazyRef):
-                        node.__slots__[k] = dic[v.name]
+                elif isinstance(v, _LazyRef):
+                    node.__slots__[k] = dic[v.name]
 
 lazy = _Lazy() # Hi, I'm a singleton.
 
@@ -157,10 +150,7 @@ class _FutureChildren(object):
     def __call__(self, node):
         self.content.append(node)
         if node._futures:
-            if len(node._futures) > 1:
-                return nested(*node._futures)
-            else:
-                return node._futures[0]
+            return nested(*node._futures) if len(node._futures) > 1 else node._futures[0]
 
     def insert_first(self, node):
         self.content.insert(0, node)
@@ -291,10 +281,7 @@ class Ast(object):
     def __call__(self, node):
         self.body.append(node)
         if node._futures:
-            if len(node._futures) > 1:
-                return nested(*node._futures)
-            else:
-                return node._futures[0]
+            return nested(*node._futures) if len(node._futures) > 1 else node._futures[0]
 
 def flatten(gen):
     stream = _Stream()

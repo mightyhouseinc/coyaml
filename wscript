@@ -28,9 +28,8 @@ def configure(conf):
 
 def build_only(bld):
     bld(
-        features     = ['c', ('cshlib'
-            if bld.env.BUILD_SHARED else 'cstlib')],
-        source       = [
+        features=['c', ('cshlib' if bld.env.BUILD_SHARED else 'cstlib')],
+        source=[
             'src/parser.c',
             'src/commandline.c',
             'src/helpers.c',
@@ -39,13 +38,13 @@ def build_only(bld):
             'src/emitter.c',
             'src/copy.c',
             'src/eval.c',
-            ],
-        target       = 'coyaml',
-        includes     = ['include', 'src'],
-        defines      = ['COYAML_VERSION="%s"' % VERSION],
-        cflags       = ['-std=c99', '-Wall'],
-        lib          = ['yaml'],
-        )
+        ],
+        target='coyaml',
+        includes=['include', 'src'],
+        defines=[f'COYAML_VERSION="{VERSION}"'],
+        cflags=['-std=c99', '-Wall'],
+        lib=['yaml'],
+    )
 
 
 def build(bld):
@@ -198,7 +197,7 @@ class makepkg(BuildContext):
     variant = 'archpkg'
 
 def archpkg(bld):
-    distfile = APPNAME + '-' + VERSION + '.tar.bz2'
+    distfile = f'{APPNAME}-{VERSION}.tar.bz2'
     bld(rule=make_pkgbuild,
         source=['PKGBUILD.tpl', distfile, 'wscript'],
         target='PKGBUILD')
